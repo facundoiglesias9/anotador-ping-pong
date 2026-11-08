@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Marcador de Ping Pong</title>
+<meta name="theme-color" content="#d32a2f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ping Pong">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<style>
+/* Layout: marcador en bloques. Lado rojo y lado negro, como las dos gomas de la paleta; dorado para el saque y los sets ganados */
+:root {
+  --bg: #eef0f3;
+  --fg: #16181d;
+  --muted: #5d6470;
+  --card: #ffffff;
+  --line: #d9dde3;
+  --red: #d32a2f;
+  --red-hi: #e0383d;
+  --ink: #1b1e24;
+  --ink-hi: #282c34;
+  --on-block: #ffffff;
+  --gold: #f2b42c;
+  --gold-fg: #2a1d00;
+  --font-score: "Bebas Neue", "Oswald", Impact, "Arial Narrow", sans-serif;
+  --font-body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1013; --fg: #eceef2; --muted: #969dab; --card: #171a1f; --line: #2a2f37;
+    --red: #c9272c; --red-hi: #d93439; --ink: #23272f; --ink-hi: #2e333c; --on-block: #ffffff;
+    --gold: #f5bd3f; --gold-fg: #241900; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1013; --fg: #eceef2; --muted: #969dab; --card: #171a1f; --line: #2a2f37;
+  --red: #c9272c; --red-hi: #d93439; --ink: #23272f; --ink-hi: #2e333c; --on-block: #ffffff;
+  --gold: #f5bd3f; --gold-fg: #241900; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 28px;
+}
+.wrap { max-width: 1040px; margin: 0 auto; display: grid; gap: 14px; }
+button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus-visible, summary:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+svg { display: block; }
+
+/* Cabecera */
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.logo { width: 34px; height: 34px; flex-shrink: 0; }
+h1 { font-family: var(--font-score); font-weight: 400; font-size: 34px; line-height: 1; letter-spacing: .03em; margin: 0; padding-top: 3px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-weight: 700; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; padding: 5px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chip.live { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+/* Mesa */
+.board { display: grid; grid-template-columns: 1fr 1fr; border-radius: 20px; overflow: hidden; position: relative; isolation: isolate; box-shadow: 0 1px 0 var(--line), 0 18px 40px -24px rgba(10, 12, 16, .45); }
+.board::after { content: ""; position: absolute; inset: 0 auto 0 50%; width: 6px; margin-left: -3px; background: var(--on-block); z-index: 2; pointer-events: none; opacity: .95; }
+.side { position: relative; display: grid; grid-template-rows: auto 1fr auto; gap: 6px; padding: 18px 20px 16px; color: var(--on-block); min-width: 0; }
+.side.c0 { background: var(--red); --hi: var(--red-hi); }
+.side.c1 { background: var(--ink); --hi: var(--ink-hi); }
+.side.serving::before { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 4px var(--gold); pointer-events: none; z-index: 1; }
+
+.top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.namewrap { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+.namewrap svg { position: absolute; right: 10px; width: 16px; height: 16px; opacity: .8; pointer-events: none; }
+.name { font: inherit; font-weight: 700; font-size: 18px; letter-spacing: .01em; color: var(--on-block); background: rgba(0, 0, 0, .12); border: 1px dashed rgba(255, 255, 255, .45); border-radius: 10px; padding: 8px 34px 8px 10px; min-height: 44px; width: 100%; min-width: 0; text-overflow: ellipsis; cursor: text; }
+.name::placeholder { color: rgba(255, 255, 255, .6); }
+.name:hover { border-color: rgba(255, 255, 255, .8); }
+.txtin { font: inherit; font-size: 15px; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); width: 100%; min-width: 0; }
+.txtin:focus { outline: none; border-color: var(--fg); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.pname { display: flex; align-items: center; gap: 8px; }
+.name:focus { outline: none; border-style: solid; border-color: var(--on-block); background: rgba(255, 255, 255, .1); }
+.pips { display: flex; gap: 5px; flex-shrink: 0; }
+.pip { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .5); transition: background .25s, border-color .25s, transform .25s var(--ease-out); }
+.pip.on { background: var(--gold); border-color: var(--gold); transform: scale(1.1); }
+
+.score { position: relative; border: 0; background: transparent; color: var(--on-block); border-radius: 14px; display: grid; place-items: center; min-height: 220px; padding: 0; transition: background .18s; touch-action: manipulation; z-index: 1; }
+.score:hover:not(:disabled) { background: var(--hi); }
+.score:active:not(:disabled) { transform: scale(.98); }
+.score:disabled { cursor: default; }
+.num { font-family: var(--font-score); font-size: clamp(120px, 26vw, 270px); line-height: .82; padding-top: .08em; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.num.bump { animation: bump .32s var(--ease-out); }
+@keyframes bump { 0% { transform: scale(1); } 35% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.plus { position: absolute; right: 10px; top: 10px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: 0; transition: opacity .18s; }
+.score:hover:not(:disabled) .plus { opacity: .75; }
+
+.bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; position: relative; z-index: 1; }
+.serve { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 999px; background: var(--gold); color: var(--gold-fg); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; animation: pop .28s var(--ease-out); }
+@keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.ballico { width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: inset -3px -3px 0 rgba(0, 0, 0, .12); }
+.left { display: inline-flex; gap: 3px; }
+.left i { width: 7px; height: 7px; border-radius: 50%; background: var(--gold-fg); }
+.minus { width: 44px; height: 44px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .35); background: rgba(0, 0, 0, .12); color: var(--on-block); display: grid; place-items: center; transition: background .15s; }
+.minus:hover { background: rgba(0, 0, 0, .25); }
+
+/* Barra de saque */
+.servebar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 10px 10px 16px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+.servebar.second { border-color: var(--red); box-shadow: inset 4px 0 0 var(--red); }
+.sb-info { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sb-ball { width: 22px; height: 22px; border-radius: 50%; background: var(--gold); flex-shrink: 0; box-shadow: inset -3px -3px 0 rgba(0, 0, 0, .15); }
+.sb-who { font-size: 15px; overflow-wrap: anywhere; }
+.sb-state { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.servebar.second .sb-state { color: var(--red); }
+.sb-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.fault { border-color: var(--red); color: var(--red); }
+.btn.fault.last { background: var(--red); color: #fff; }
+.serve.second { background: var(--on-block); color: var(--red); }
+.serve.second .left i { background: var(--red); }
+
+/* Estado del set */
+.status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 16px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+.status .tag { font-family: var(--font-score); font-size: 22px; line-height: 1; letter-spacing: .04em; padding: 5px 10px 2px; border-radius: 8px; background: var(--fg); color: var(--bg); }
+.status .tag.gold { background: var(--gold); color: var(--gold-fg); }
+.status p { margin: 0; color: var(--muted); flex: 1 1 260px; min-width: 0; }
+.status p b { color: var(--fg); }
+.status .btn { margin-left: auto; }
+
+/* Historial de sets */
+.history { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.history .lbl { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.hs { display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 10px; border-radius: 8px; background: var(--card); border: 1px solid var(--line); font-variant-numeric: tabular-nums; font-size: 14px; }
+.hs b.w0 { color: var(--red); }
+.hs .sep { color: var(--muted); }
+
+/* Botones */
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; font-size: 15px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--fg); transition: border-color .15s, transform .1s; }
+.btn:hover:not(:disabled) { border-color: var(--muted); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--gold); border-color: var(--gold); color: var(--gold-fg); font-weight: 700; }
+.btn.danger { background: var(--red); border-color: var(--red); color: #fff; }
+.btn svg { width: 18px; height: 18px; }
+.confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; border-radius: 14px; border: 1px solid var(--red); background: var(--card); font-weight: 600; }
+.spacer { flex: 1; }
+.keys { color: var(--muted); font-size: 13px; }
+kbd { font-family: ui-monospace, Consolas, monospace; font-size: 12px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; background: var(--card); color: var(--fg); }
+
+/* Ajustes */
+details.settings { border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+details.settings summary { list-style: none; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 16px; cursor: pointer; font-weight: 700; border-radius: 14px; }
+details.settings summary::-webkit-details-marker { display: none; }
+details.settings summary .sum { color: var(--muted); font-weight: 400; font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+details.settings summary .chev { width: 18px; height: 18px; transition: transform .2s var(--ease-out); flex-shrink: 0; }
+details.settings[open] summary .chev { transform: rotate(180deg); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 24px; padding: 4px 16px 18px; }
+.field { display: grid; gap: 8px; align-content: start; }
+.field > span { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.field small { color: var(--muted); font-size: 13px; }
+.seg { display: flex; padding: 3px; gap: 3px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
+.seg button { flex: 1; min-height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--fg); font-weight: 600; font-size: 14px; padding: 0 10px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: background .15s, color .15s; }
+.seg button:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--card); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.seg button:disabled:not([aria-pressed="true"]) { opacity: .45; cursor: not-allowed; }
+
+@media (max-width: 600px) {
+  h1 { font-size: 28px; }
+  .side { padding: 14px 12px 12px; }
+  .score { min-height: 170px; }
+  .name { font-size: 16px; }
+  .keys, .plus { display: none; }
+  .serve { font-size: 12px; padding-right: 10px; }
+  .serve .txt { display: none; }
+}
+.mobile-only { display: none; }
+.backdrop { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, .5); z-index: 29; }
+@keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
+
+/* Celular: todo entra en una pantalla, sin scroll; las reglas se abren como hoja desde abajo */
+@media (max-width: 700px), (max-height: 520px) {
+  html, body { height: 100%; }
+  body { padding-block: 8px; overscroll-behavior: none; }
+  .wrap { height: 100%; display: flex; flex-direction: column; gap: 8px; }
+  header { flex-wrap: nowrap; }
+  .brand { min-width: 0; gap: 8px; }
+  h1 { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .logo { width: 26px; height: 26px; }
+  .chips { flex-wrap: nowrap; flex-shrink: 0; }
+  .chip { font-size: 12px; padding: 4px 8px; }
+  .board { flex: 1 1 auto; min-height: 0; border-radius: 16px; }
+  .side { padding: 10px; gap: 4px; min-height: 0; }
+  .score { min-height: 0; user-select: none; -webkit-user-select: none; }
+  .num { font-size: min(44vw, 30vh); }
+  .name { font-size: 16px; min-height: 40px; padding: 6px 30px 6px 8px; }
+  .pip { width: 10px; height: 10px; }
+  .bottom { min-height: 40px; }
+  .minus { width: 40px; height: 40px; }
+  .servebar { padding: 6px 6px 6px 12px; flex-wrap: nowrap; }
+  .sb-info { flex: 1; gap: 8px; }
+  .sb-info > div { min-width: 0; }
+  .sb-ball { width: 16px; height: 16px; }
+  .sb-who, .sb-state { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sb-who { font-size: 14px; }
+  .sb-state { font-size: 11px; }
+  .sb-btns { flex-wrap: nowrap; flex-shrink: 0; gap: 6px; }
+  .sb-btns .btn { padding: 0 12px; }
+  .fault .xl { display: none; }
+  .status { padding: 8px 12px; gap: 8px; flex-wrap: nowrap; }
+  .status .tag { font-size: 18px; flex-shrink: 0; }
+  .status p { font-size: 14px; flex: 1; }
+  .status .btn { flex-shrink: 0; }
+  .status.info, .history, .keys, .spacer { display: none; }
+  .actions { flex-wrap: nowrap; gap: 6px; }
+  .actions .btn { flex: 1; justify-content: center; padding: 0 8px; gap: 6px; font-size: 13px; }
+  #resetArea { display: contents; }
+  .actions:has(.confirm) > .btn { display: none; }
+  .confirm { flex: 1; justify-content: space-between; font-size: 14px; }
+  .confirm .btn { flex: 0 0 auto; }
+  .mobile-only { display: inline-flex; }
+  details.settings:not([open]) { display: none; }
+  details.settings[open] {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; max-height: 85%; overflow: auto;
+    border-radius: 20px 20px 0 0; border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, .35); animation: sheet .25s var(--ease-out);
+  }
+  details.settings summary { position: sticky; top: 0; background: var(--card); z-index: 1; border-radius: 20px 20px 0 0; }
+  .txtin { font-size: 16px; }
+  .backdrop:not([hidden]) { display: block; }
+}
+@media (max-width: 430px) {
+  .actions .bl { display: none; }
+}
+/* Celular acostado: sin cabecera, la mesa ocupa todo */
+@media (max-height: 520px) and (orientation: landscape) {
+  header { display: none; }
+  .num { font-size: min(24vw, 34vh); }
+  .side { grid-template-rows: auto minmax(0, 1fr) auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 34 34" aria-hidden="true">
+        <circle cx="14" cy="14" r="11" fill="var(--red)"/>
+        <rect x="18.5" y="19" width="5" height="13" rx="2.5" transform="rotate(-45 21 25.5)" fill="var(--fg)"/>
+        <circle cx="27.5" cy="7" r="4" fill="var(--gold)"/>
+      </svg>
+      <h1>Marcador de Ping Pong</h1>
+    </div>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <section class="board" id="board" aria-label="Mesa"></section>
+
+  <div class="servebar" id="servebar">
+    <div class="sb-info">
+      <span class="sb-ball" aria-hidden="true"></span>
+      <div><div class="sb-who">Saca <b id="sbName">Jugador 1</b></div><div class="sb-state" id="sbState">Primer saque</div></div>
+    </div>
+    <div class="sb-btns">
+      <button class="btn" id="letBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Let</button>
+      <button class="btn fault" id="faultBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span id="faultTxt">Mala 1</span></button>
+    </div>
+  </div>
+
+  <div id="msg" aria-live="polite"></div>
+
+  <div class="history" id="history" hidden></div>
+
+  <div class="actions">
+    <button class="btn" id="undo" aria-label="Deshacer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span class="bl">Deshacer</span></button>
+    <button class="btn" id="swap" aria-label="Cambiar lados"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg><span class="bl">Lados</span></button>
+    <span id="resetArea"></span>
+    <button class="btn mobile-only" id="rulesBtn" aria-label="Reglas del partido"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10"/><path d="M18 6h2"/><circle cx="16" cy="6" r="2"/><path d="M4 12h4"/><path d="M12 12h8"/><circle cx="10" cy="12" r="2"/><path d="M4 18h12"/><path d="M20 18h0"/><circle cx="18" cy="18" r="2"/></svg><span class="bl">Reglas</span></button>
+    <button class="btn" id="fsBtn" aria-label="Pantalla completa" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg><span class="bl">Completa</span></button>
+    <span class="spacer"></span>
+    <span class="keys"><kbd>A</kbd> izquierda · <kbd>L</kbd> derecha · <kbd>M</kbd> mala · <kbd>N</kbd> let · <kbd>Z</kbd> deshacer</span>
+  </div>
+
+  <div class="backdrop" id="backdrop" hidden></div>
+  <details class="settings" id="settings">
+    <summary>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;flex-shrink:0"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.6.77 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Reglas del partido
+      <span class="sum" id="sum"></span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <div class="grid">
+      <div class="field"><span>Jugadores</span>
+        <label class="pname"><span class="dot" style="background:var(--red)" aria-hidden="true"></span><input class="txtin" id="pn0" maxlength="24" autocomplete="off" placeholder="Nombre del jugador 1" aria-label="Nombre del jugador rojo"></label>
+        <label class="pname"><span class="dot" style="background:var(--ink);box-shadow:0 0 0 1px var(--muted)" aria-hidden="true"></span><input class="txtin" id="pn1" maxlength="24" autocomplete="off" placeholder="Nombre del jugador 2" aria-label="Nombre del jugador negro"></label>
+      </div>
+      <div class="field"><span>Puntos por set</span>
+        <div class="seg" data-key="target"><button data-v="11">11 puntos</button><button data-v="21">21 puntos</button></div>
+        <small id="deuceNote">Desde 10–10 se gana por 2 de diferencia.</small>
+      </div>
+      <div class="field"><span>Cambio de saque</span>
+        <div class="seg" data-key="every"><button data-v="2">Cada 2</button><button data-v="5">Cada 5</button></div>
+        <small>En la igualdad se saca de a 1.</small>
+      </div>
+      <div class="field"><span>Partido</span>
+        <div class="seg" data-key="bestOf"><button data-v="1">1 set</button><button data-v="3">3 sets</button><button data-v="5">5 sets</button><button data-v="7">7 sets</button></div>
+      </div>
+      <div class="field"><span>Saca primero</span>
+        <div class="seg" data-key="setFirst"><button data-v="0" id="fs0">Jugador 1</button><button data-v="1" id="fs1">Jugador 2</button></div>
+        <small id="fsNote">Se elige con el set en 0–0.</small>
+      </div>
+    </div>
+  </details>
+</div>
+
+<script>
+const KEY = 'pp-marcador-v1';
+const defaults = { target: 11, every: 2, bestOf: 3, names: ['Jugador 1', 'Jugador 2'], score: [0, 0], sets: [0, 0], setNo: 1, setFirst: 0, matchFirst: 0, setOver: -1, swapped: false, setLog: [], fault: 0, lets: 0 };
+let S = load();
+let history = [];
+
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.score) return Object.assign(JSON.parse(JSON.stringify(defaults)), s); } catch (e) {}
+  return JSON.parse(JSON.stringify(defaults));
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+function snap() { history.push(JSON.stringify({ score: S.score, sets: S.sets, setNo: S.setNo, setFirst: S.setFirst, setOver: S.setOver, swapped: S.swapped, setLog: S.setLog, fault: S.fault, lets: S.lets })); if (history.length > 500) history.shift(); }
+
+const needed = () => Math.floor(S.bestOf / 2) + 1;
+const matchWinner = () => S.sets[0] >= needed() ? 0 : S.sets[1] >= needed() ? 1 : -1;
+const deuceAt = () => S.target - 1;
+const isDeuce = () => S.score[0] >= deuceAt() && S.score[1] >= deuceAt();
+
+// Saque: bloques de N puntos; desde 10–10 / 20–20 se alterna en cada punto
+function serveInfo() {
+  const p = S.score[0] + S.score[1], d2 = 2 * deuceAt(), n = S.every;
+  let block, left;
+  if (p < d2) { block = Math.floor(p / n); left = n - (p % n); }
+  else { block = Math.ceil(d2 / n) + (p - d2); left = 1; }
+  return { server: (S.setFirst + block) % 2, left };
+}
+function setWinner() {
+  const [a, b] = S.score;
+  if (a >= S.target && a - b >= 2) return 0;
+  if (b >= S.target && b - a >= 2) return 1;
+  return -1;
+}
+function closeSetIfWon() {
+  const w = setWinner();
+  if (w >= 0) { S.sets[w]++; S.setOver = w; S.setLog = S.setLog.concat([[S.score[0], S.score[1]]]); }
+}
+
+function point(i, delta) {
+  if (delta > 0 && (S.setOver >= 0 || matchWinner() >= 0)) return;
+  if (delta < 0 && S.score[i] === 0) return;
+  snap();
+  applyPoint(i, delta);
+}
+function applyPoint(i, delta) {
+  if (delta < 0 && S.setOver >= 0) { S.sets[S.setOver]--; S.setOver = -1; S.setLog = S.setLog.slice(0, -1); }
+  S.score[i] += delta;
+  S.fault = 0; S.lets = 0;
+  closeSetIfWon();
+  if (delta > 0) buzz();
+  save(); render(delta > 0 ? i : -1);
+}
+// Saque: Mala 1 da segundo saque; Mala 2 es punto para el que recibe; Let repite el saque
+function serveFault() {
+  if (S.setOver >= 0 || matchWinner() >= 0) return;
+  snap();
+  if (S.fault === 0) { S.fault = 1; S.lets = 0; save(); render(); }
+  else applyPoint(1 - serveInfo().server, 1);
+}
+function serveLet() {
+  if (S.setOver >= 0 || matchWinner() >= 0) return;
+  snap(); S.lets++; save(); render();
+}
+function nextSet() {
+  snap();
+  S.score = [0, 0]; S.setNo++; S.setOver = -1;
+  S.setFirst = (S.matchFirst + S.setNo - 1) % 2;
+  S.swapped = !S.swapped;
+  save(); render();
+}
+function undo() { const h = history.pop(); if (!h) return; Object.assign(S, JSON.parse(h)); save(); render(); }
+function resetMatch() {
+  history = [];
+  const keep = { target: S.target, every: S.every, bestOf: S.bestOf, names: S.names.slice() };
+  S = Object.assign(JSON.parse(JSON.stringify(defaults)), keep);
+  save(); render();
+}
+
+const $ = id => document.getElementById(id);
+const board = $('board');
+const minusIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>';
+const pencil = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+board.innerHTML = [0, 1].map(i => `<div class="side c${i}" id="side${i}">
+  <div class="top"><label class="namewrap"><input class="name" id="name${i}" aria-label="Nombre del jugador ${i + 1}" placeholder="Nombre del jugador ${i + 1}" title="Tocá para cambiar el nombre" maxlength="24" autocomplete="off">${pencil}</label><div class="pips" id="pips${i}" role="img"></div></div>
+  <button class="score" id="score${i}"><span class="plus">+1 punto</span><span class="num" id="num${i}">0</span></button>
+  <div class="bottom"><span id="serveSlot${i}"></span><button class="minus" id="minus${i}" aria-label="Restar un punto">${minusIcon}</button></div>
+</div>`).join('');
+for (const i of [0, 1]) {
+  $('score' + i).onclick = () => point(i, 1);
+  $('minus' + i).onclick = () => point(i, -1);
+  for (const id of ['name' + i, 'pn' + i]) {
+    const inp = $(id);
+    inp.oninput = () => { S.names[i] = inp.value.trim() || `Jugador ${i + 1}`; save(); render(); };
+    inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
+    inp.onfocus = () => inp.select();
+  }
+}
+
+document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const k = seg.dataset.key, v = +b.dataset.v;
+  if (k === 'setFirst') { S.setFirst = v; S.matchFirst = (v - (S.setNo - 1) % 2 + 2) % 2; }
+  else { S[k] = v; if (k === 'target' && S.setOver < 0) closeSetIfWon(); }
+  save(); render();
+}));
+
+$('undo').onclick = undo;
+$('faultBtn').onclick = serveFault;
+const settingsEl = $('settings'), backdrop = $('backdrop');
+$('rulesBtn').onclick = () => { settingsEl.open = !settingsEl.open; };
+settingsEl.addEventListener('toggle', () => { backdrop.hidden = !settingsEl.open; });
+backdrop.onclick = () => { settingsEl.open = false; };
+if (document.fullscreenEnabled) {
+  $('fsBtn').hidden = false;
+  $('fsBtn').onclick = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    } catch (e) { $('fsBtn').hidden = true; }
+  };
+}
+function buzz() { try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {} }
+$('letBtn').onclick = serveLet;
+$('swap').onclick = () => { S.swapped = !S.swapped; save(); render(); };
+const resetIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+function showReset() { $('resetArea').innerHTML = `<button class="btn" id="reset" aria-label="Nuevo partido">${resetIcon}<span class="bl">Nuevo</span></button>`; $('reset').onclick = askReset; }
+function askReset() {
+  $('resetArea').innerHTML = '<span class="confirm">¿Borrar todo el marcador? <button class="btn danger" id="yes">Borrar</button><button class="btn" id="no">Cancelar</button></span>';
+  $('yes').onclick = () => { resetMatch(); showReset(); };
+  $('no').onclick = showReset;
+  $('no').focus();
+}
+showReset();
+
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function renderText() {
+  $('fs0').textContent = S.names[0]; $('fs1').textContent = S.names[1];
+  for (const i of [0, 1]) $('score' + i).setAttribute('aria-label', `Sumar punto a ${S.names[i]}, tiene ${S.score[i]}`);
+}
+
+function render(bumped = -1) {
+  $('side0').style.order = S.swapped ? 2 : 1;
+  $('side1').style.order = S.swapped ? 1 : 2;
+
+  const mw = matchWinner(), sw = S.setOver, si = serveInfo(), over = sw >= 0 || mw >= 0, deuce = isDeuce();
+  for (const i of [0, 1]) {
+    for (const id of ['name' + i, 'pn' + i]) { const inp = $(id); if (document.activeElement !== inp) inp.value = S.names[i]; }
+    const num = $('num' + i);
+    num.textContent = S.score[i];
+    if (i === bumped) { num.classList.remove('bump'); void num.offsetWidth; num.classList.add('bump'); }
+    $('score' + i).disabled = over;
+    $('minus' + i).disabled = S.score[i] === 0;
+    const pips = $('pips' + i);
+    pips.innerHTML = Array.from({ length: needed() }, (_, k) => `<span class="pip${k < S.sets[i] ? ' on' : ''}"></span>`).join('');
+    pips.setAttribute('aria-label', `${S.sets[i]} sets ganados de ${needed()}`);
+    const serving = !over && si.server === i;
+    $('side' + i).classList.toggle('serving', serving);
+    const slot = $('serveSlot' + i);
+    const want = serving ? `${si.left}-${deuce}-${S.fault}` : '';
+    if (slot.dataset.k !== want) {
+      slot.dataset.k = want;
+      slot.innerHTML = serving
+        ? `<span class="serve${S.fault ? ' second' : ''}"><span class="ballico"></span><span class="txt">${S.fault ? '2º saque' : 'Saque'}</span><span class="left" aria-label="${si.left} saques restantes">${'<i></i>'.repeat(si.left)}</span></span>`
+        : '';
+    }
+  }
+
+  document.querySelectorAll('.seg').forEach(seg => {
+    const k = seg.dataset.key;
+    seg.querySelectorAll('button').forEach(b => {
+      b.setAttribute('aria-pressed', String(+b.dataset.v === S[k]));
+      if (k === 'setFirst') b.disabled = S.score[0] + S.score[1] > 0;
+    });
+  });
+  renderText();
+
+  const d = deuceAt();
+  $('deuceNote').textContent = `Desde ${d}–${d} se gana por 2 de diferencia.`;
+  $('sum').textContent = `${S.target} pts · saque cada ${S.every} · ${S.bestOf === 1 ? '1 set' : S.bestOf + ' sets'}`;
+
+  $('chips').innerHTML = `<span class="chip live">Set ${S.setNo}</span><span class="chip">Sets ${S.sets[0]}–${S.sets[1]}</span>`;
+
+  const h = $('history');
+  h.hidden = S.setLog.length === 0;
+  h.innerHTML = '<span class="lbl">Sets</span>' + S.setLog.map((s, k) =>
+    `<span class="hs"><span class="sep">${k + 1}</span><b class="${s[0] > s[1] ? 'w0' : ''}">${s[0]}</b><span class="sep">–</span><b>${s[1]}</b></span>`).join('');
+
+  const sb = $('servebar'), rec = 1 - si.server;
+  sb.hidden = over;
+  sb.classList.toggle('second', S.fault === 1);
+  $('sbName').textContent = S.names[si.server];
+  $('sbState').textContent = (S.fault ? 'Segundo saque' : 'Primer saque') + (S.lets ? ` · ${S.lets === 1 ? '1 let' : S.lets + ' lets'}, se repite` : '');
+  $('faultTxt').innerHTML = S.fault ? `Mala 2<span class="xl"> · punto para ${esc(S.names[rec])}</span>` : 'Mala 1';
+  if (S.fault && !S.lets) $('sbState').textContent = `2º saque · otra mala es punto para ${S.names[rec]}`;
+  $('faultBtn').classList.toggle('last', S.fault === 1);
+  $('faultBtn').setAttribute('aria-label', S.fault ? `Mala 2, punto para ${S.names[rec]}` : 'Mala 1, segundo saque');
+
+  const msg = $('msg');
+  let html;
+  if (mw >= 0) {
+    html = `<div class="status"><span class="tag gold">Partido</span><p><b>${esc(S.names[mw])}</b> gana ${S.sets[mw]}–${S.sets[1 - mw]}.</p><button class="btn primary" id="again">Jugar otro partido</button></div>`;
+  } else if (sw >= 0) {
+    html = `<div class="status"><span class="tag gold">Fin del set</span><p><b>${esc(S.names[sw])}</b> gana el set ${S.setNo}, ${S.score[sw]}–${S.score[1 - sw]}. En el próximo se cambia de lado y saca el otro.</p><button class="btn primary" id="next">Siguiente set</button></div>`;
+  } else if (deuce) {
+    const diff = S.score[0] - S.score[1];
+    html = diff === 0
+      ? `<div class="status"><span class="tag">Iguales</span><p>Se gana por <b>2 de diferencia</b>. El saque cambia en cada punto.</p></div>`
+      : `<div class="status"><span class="tag">Ventaja</span><p><b>${esc(S.names[diff > 0 ? 0 : 1])}</b> está a un punto del set.</p></div>`;
+  } else {
+    html = `<div class="status info"><span class="tag">${S.score[0]}–${S.score[1]}</span><p>Set a <b>${S.target}</b>. Saca <b>${esc(S.names[si.server])}</b> (${si.left === 1 ? 'último saque' : si.left + ' saques'}). Desde ${d}–${d} se gana por 2.</p></div>`;
+  }
+  msg.innerHTML = html;
+  if ($('again')) $('again').onclick = resetMatch;
+  if ($('next')) $('next').onclick = nextSet;
+  $('undo').disabled = history.length === 0;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const leftI = S.swapped ? 1 : 0, k = e.key.toLowerCase();
+  if (k === 'a') point(leftI, 1);
+  else if (k === 'l') point(1 - leftI, 1);
+  else if (k === 'z') undo();
+  else if (k === 'm') serveFault();
+  else if (k === 'n') serveLet();
+});
+
+async function wake() { try { if (navigator.wakeLock && document.visibilityState === 'visible') await navigator.wakeLock.request('screen'); } catch (e) {} }
+document.addEventListener('visibilitychange', wake); wake();
+
+render();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+</script>
+</body>
+</html>
