@@ -126,6 +126,9 @@ h1 { font-family: var(--font-score); font-weight: 400; font-size: 34px; line-hei
 .btn.fault { border-color: var(--red); color: var(--red); }
 .btn.fault.last { background: var(--red); color: #fff; }
 .serve.second { background: var(--on-block); color: var(--red); }
+.pick { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px 0 8px; border-radius: 999px; border: 2px dashed rgba(255, 255, 255, .6); background: transparent; color: var(--on-block); font-weight: 700; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; transition: background .15s, border-color .15s; }
+.pick:hover { background: rgba(255, 255, 255, .12); border-color: var(--on-block); }
+.pickball { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .7); }
 .serve.second .left i { background: var(--red); }
 
 /* Estado del set */
@@ -241,7 +244,7 @@ details.settings[open] summary .chev { transform: rotate(180deg); }
   .backdrop:not([hidden]) { display: block; }
 }
 @media (max-width: 430px) {
-  .actions .bl { display: none; }
+  .actions .bl, .sb-btns .bl { display: none; }
 }
 /* Celular acostado: sin cabecera, la mesa ocupa todo */
 @media (max-height: 520px) and (orientation: landscape) {
@@ -276,6 +279,7 @@ details.settings[open] summary .chev { transform: rotate(180deg); }
       <div><div class="sb-who">Saca <b id="sbName">Jugador 1</b></div><div class="sb-state" id="sbState">Primer saque</div></div>
     </div>
     <div class="sb-btns">
+      <button class="btn" id="swapSrvBtn" aria-label="Cambiar quién saca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg><span class="bl">Cambiar</span></button>
       <button class="btn" id="letBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Let</button>
       <button class="btn fault" id="faultBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span id="faultTxt">Mala 1</span></button>
     </div>
@@ -321,7 +325,7 @@ details.settings[open] summary .chev { transform: rotate(180deg); }
       </div>
       <div class="field"><span>Saca primero</span>
         <div class="seg" data-key="setFirst"><button data-v="0" id="fs0">Jugador 1</button><button data-v="1" id="fs1">Jugador 2</button></div>
-        <small id="fsNote">Se elige con el set en 0–0.</small>
+        <small id="fsNote">También podés tocar "Saca acá" en la mesa o "Cambiar" en la barra de saque.</small>
       </div>
     </div>
   </details>
@@ -385,6 +389,15 @@ function serveFault() {
   if (S.fault === 0) { S.fault = 1; S.lets = 0; save(); render(); }
   else applyPoint(1 - serveInfo().server, 1);
 }
+// Elegir quién saca: invierte el orden de saque del set actual (sirve también para corregir)
+function chooseServer(i) {
+  if (S.setOver >= 0 || matchWinner() >= 0 || serveInfo().server === i) return;
+  snap();
+  S.setFirst = 1 - S.setFirst;
+  S.matchFirst = (S.setFirst - (S.setNo - 1) % 2 + 2) % 2;
+  S.fault = 0; S.lets = 0;
+  save(); render();
+}
 function serveLet() {
   if (S.setOver >= 0 || matchWinner() >= 0) return;
   snap(); S.lets++; save(); render();
@@ -427,13 +440,15 @@ for (const i of [0, 1]) {
 document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const k = seg.dataset.key, v = +b.dataset.v;
-  if (k === 'setFirst') { S.setFirst = v; S.matchFirst = (v - (S.setNo - 1) % 2 + 2) % 2; }
+  if (k === 'setFirst') { if (serveInfo().server !== v) chooseServer(v); return; }
   else { S[k] = v; if (k === 'target' && S.setOver < 0) closeSetIfWon(); }
   save(); render();
 }));
 
 $('undo').onclick = undo;
 $('faultBtn').onclick = serveFault;
+$('swapSrvBtn').onclick = () => chooseServer(1 - serveInfo().server);
+board.addEventListener('click', e => { const b = e.target.closest('[data-pick]'); if (b) chooseServer(+b.dataset.pick); });
 const settingsEl = $('settings'), backdrop = $('backdrop');
 $('rulesBtn').onclick = () => { settingsEl.open = !settingsEl.open; };
 settingsEl.addEventListener('toggle', () => { backdrop.hidden = !settingsEl.open; });
@@ -485,12 +500,13 @@ function render(bumped = -1) {
     const serving = !over && si.server === i;
     $('side' + i).classList.toggle('serving', serving);
     const slot = $('serveSlot' + i);
-    const want = serving ? `${si.left}-${deuce}-${S.fault}` : '';
+    const canPick = !over && !serving && S.score[0] + S.score[1] === 0;
+    const want = serving ? `${si.left}-${deuce}-${S.fault}` : canPick ? 'pick' : '';
     if (slot.dataset.k !== want) {
       slot.dataset.k = want;
       slot.innerHTML = serving
         ? `<span class="serve${S.fault ? ' second' : ''}"><span class="ballico"></span><span class="txt">${S.fault ? '2º saque' : 'Saque'}</span><span class="left" aria-label="${si.left} saques restantes">${'<i></i>'.repeat(si.left)}</span></span>`
-        : '';
+        : canPick ? `<button class="pick" data-pick="${i}"><span class="pickball"></span>Saca acá</button>` : '';
     }
   }
 
@@ -498,7 +514,6 @@ function render(bumped = -1) {
     const k = seg.dataset.key;
     seg.querySelectorAll('button').forEach(b => {
       b.setAttribute('aria-pressed', String(+b.dataset.v === S[k]));
-      if (k === 'setFirst') b.disabled = S.score[0] + S.score[1] > 0;
     });
   });
   renderText();
